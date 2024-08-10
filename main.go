@@ -11,9 +11,21 @@ import (
 	"time"
 )
 
+// ANSI color codes
+const (
+	ColorReset   = "\033[0m"
+	ColorRed     = "\033[31m"
+	ColorGreen   = "\033[32m"
+	ColorYellow  = "\033[33m"
+	ColorBlue    = "\033[34m"
+	ColorMagenta = "\033[35m"
+	ColorCyan    = "\033[36m"
+	ColorWhite   = "\033[37m"
+)
+
 // Function to fetch external IP using an external API
 func getExternalIP() (string, error) {
-	fmt.Println("Fetching your external IP address...")
+	fmt.Println(ColorCyan + "Fetching your external IP address..." + ColorReset)
 	resp, err := http.Get("https://api.ipify.org?format=text")
 	if err != nil {
 		return "", err
@@ -28,22 +40,22 @@ func getExternalIP() (string, error) {
 	return string(ip), nil
 }
 
-// RunTCPServer starts a simple TCP server on a random port
+// RunTCPServer starts a simple TCP server on a specified port
 func runTCPServer(port int, done chan bool) {
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		fmt.Println("Error starting TCP server:", err)
+		fmt.Println(ColorRed+"Error starting TCP server:"+ColorReset, err)
 		return
 	}
 	defer ln.Close()
 
-	fmt.Printf("TCP server successfully started, listening on port %d\n", port)
+	fmt.Printf(ColorGreen+"TCP server successfully started, listening on port %d\n"+ColorReset, port)
 	done <- true
 
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection:", err)
+			fmt.Println(ColorRed+"Error accepting connection:"+ColorReset, err)
 			continue
 		}
 		go handleConnection(conn)
@@ -56,15 +68,15 @@ func handleConnection(conn net.Conn) {
 	buf := make([]byte, 1024)
 	n, err := conn.Read(buf)
 	if err != nil {
-		fmt.Println("Error reading from connection:", err)
+		fmt.Println(ColorRed+"Error reading from connection:"+ColorReset, err)
 		return
 	}
-	fmt.Println("Received data:", string(buf[:n]))
+	fmt.Println(ColorBlue+"Received data:"+ColorReset, string(buf[:n]))
 }
 
 // Function to check if a specific port is open on the external IP
 func checkPortReachability(ip string, port int) (bool, error) {
-	fmt.Printf("Checking if port %d on IP %s is reachable from the internet...\n", port, ip)
+	fmt.Printf(ColorYellow+"Checking if port %d on IP %s is reachable from the internet...\n"+ColorReset, port, ip)
 	url := "https://portchecker.io/api/v1/query"
 	reqBody := map[string]interface{}{
 		"host":  ip,
@@ -74,7 +86,6 @@ func checkPortReachability(ip string, port int) (bool, error) {
 	jsonBody, _ := json.Marshal(reqBody)
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonBody))
-
 	if err != nil {
 		return false, err
 	}
@@ -85,17 +96,17 @@ func checkPortReachability(ip string, port int) (bool, error) {
 		return false, err
 	}
 
-	// Debugging: Print the response body in case of error
-	fmt.Println("Response body:", string(body))
+	if debug {
+		fmt.Println(ColorMagenta + "Response body:" + ColorReset)
+		fmt.Println(string(body))
+	}
 
-	// {"error":false,"host":"ip","check":[{"port":2124,"status":false}],"msg":null}
 	var result struct {
 		Error bool `json:"error"`
 		Check []struct {
 			Port   int  `json:"port"`
 			Status bool `json:"status"`
 		} `json:"check"`
-
 		Msg string `json:"msg"`
 	}
 
@@ -111,19 +122,22 @@ func checkPortReachability(ip string, port int) (bool, error) {
 	return result.Check[0].Status, nil
 }
 
+var (
+	debug bool
+)
+
 func main() {
-	var debug bool
 	var port int
 	flag.BoolVar(&debug, "debug", false, "Enable debug mode")
 	flag.IntVar(&port, "port", 0, "Port number to use")
 	flag.Parse()
 
 	if debug {
-		fmt.Println("Debug mode enabled")
+		fmt.Println(ColorMagenta + "Debug mode enabled" + ColorReset)
 	}
 
 	if port != 0 {
-		fmt.Println("Port number:", port)
+		fmt.Println(ColorCyan+"Port number:"+ColorReset, port)
 	} else {
 		port = 49198
 	}
@@ -131,13 +145,13 @@ func main() {
 	// Fetch the external IP address
 	externalIP, err := getExternalIP()
 	if err != nil {
-		fmt.Println("Error fetching external IP:", err)
+		fmt.Println(ColorRed+"Error fetching external IP:"+ColorReset, err)
 		return
 	}
-	fmt.Println("Your external IP address is:", externalIP)
+	fmt.Println(ColorGreen+"Your external IP address is:"+ColorReset, externalIP)
 
 	// Start TCP server on the selected port in a goroutine
-	fmt.Printf("Starting a TCP server on a random port (%d)...\n", port)
+	fmt.Printf(ColorYellow+"Starting a TCP server on port %d...\n"+ColorReset, port)
 	done := make(chan bool)
 	go runTCPServer(port, done)
 
@@ -150,14 +164,14 @@ func main() {
 	// Check if the port is reachable from the outside
 	isOpen, err := checkPortReachability(externalIP, port)
 	if err != nil {
-		fmt.Println("Error checking port reachability:", err)
+		fmt.Println(ColorRed+"Error checking port reachability:"+ColorReset, err)
 		return
 	}
 
 	// Determine if the IP is dedicated or shared
 	if isOpen {
-		fmt.Printf("Success! Port %d on IP %s is reachable. Your ISP has likely provided you with a dedicated public IP.\n", port, externalIP)
+		fmt.Printf(ColorGreen+"Success! Port %d on IP %s is reachable. Your ISP has likely provided you with a dedicated public IP.\n"+ColorReset, port, externalIP)
 	} else {
-		fmt.Printf("Port %d on IP %s is not reachable. Your ISP has likely provided you with a shared public IP (NATed).\n", port, externalIP)
+		fmt.Printf(ColorRed+"Port %d on IP %s is not reachable. Your ISP has likely provided you with a shared public IP (NATed).\n"+ColorReset, port, externalIP)
 	}
 }
